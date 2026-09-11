@@ -5,6 +5,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from PIL import Image
+import re
 
 # Configuração da página
 st.set_page_config(page_title="Hub Afiliado - Shopee & Pinterest", page_icon="🚀", layout="wide")
@@ -162,6 +163,13 @@ if st.button("🧠 Gerar Conteúdo com Gemini", type="primary") and pode_gerar:
             except Exception as e:
                 st.error(f"Erro ao gerar conteúdo: {e}")
 
+# Função auxiliar para extrair seções usando expressões regulares do texto gerado
+def extrair_secao(texto, padrao):
+    match = re.search(padrao, texto, re.IGNORECASE | re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return ""
+
 # --- ÁREA DE REVISÃO, EDIÇÃO E CÓPIA RÁPIDA ---
 if st.session_state.texto_gerado:
     st.subheader("2. Revisão, Edição e Cópia Rápida")
@@ -176,7 +184,7 @@ if st.session_state.texto_gerado:
 
     meu_link_afiliado = st.text_input("Cole aqui o seu Link de Afiliado final:", key="link_afiliado_val")
 
-    # --- ARMAZENAMENTO EM LOTE ---
+    # --- ARMAZENAMENTO EM LOTE EM COLUNAS SEPARADAS ---
     st.subheader("3. Salvar para Postagem")
 
     if st.button("💾 Salvar na Fila (Excel)", type="secondary"):
@@ -192,9 +200,24 @@ if st.session_state.texto_gerado:
                 
             caminhos_str = " | ".join(caminhos_salvos)
 
+            # Extração inteligente de cada campo para a sua respectiva coluna
+            titulo_ext = extrair_secao(texto_editado, r"📌\s*\*?Título do Pin:\*?\s*(.*?)(?=\n\s*(?:📝|💡|🎬|💬|🚀)|$)")
+            descricao_ext = extrair_secao(texto_editado, r"📝\s*\*?Descrição do Pin:\*?\s*(.*?)(?=\n\s*(?:💡|🎬|💬|🚀)|$)")
+            pasta_ext = extrair_secao(texto_editado, r"Pasta:\s*(.*?)(?=\n|$)")
+            tags_ext = extrair_secao(texto_editado, r"Interesses\s*/\s*Tags no Pinterest:\s*(.*?)(?=\n\s*(?:🎬|💬|🚀|Link de Destino)|$)")
+            roteiro_ext = extrair_secao(texto_editado, r"🎬\s*\*?Roteiro para Vídeo no Canva.*?\*?\s*(.*?)(?=\n\s*(?:💬|🚀)|$)")
+            shop_ext = extrair_secao(texto_editado, r"💬\s*\*?Texto para a descrição do Shop Vídeo.*?\*?\s*(.*?)(?=\n\s*🚀|$)")
+            insight_ext = extrair_secao(texto_editado, r"🚀\s*\*?Insight de Afiliado:\*?\s*(.*)")
+
             novo_dado = {
                 "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "Conteúdo Completo": texto_editado,
+                "Título do Pin": titulo_ext,
+                "Descrição do Pin": descricao_ext,
+                "Pasta Sugerida": pasta_ext,
+                "Interesses / Tags Pinterest": tags_ext,
+                "Roteiro Vídeo (Canva 9:16)": roteiro_ext,
+                "Texto Shop Vídeo": shop_ext,
+                "Insight de Afiliado": insight_ext,
                 "Link Afiliado": meu_link_afiliado,
                 "Caminho Arquivos (Mídia)": caminhos_str
             }
@@ -211,7 +234,7 @@ if st.session_state.texto_gerado:
                 else:
                     df_novo.to_excel(arquivo_excel, index=False, engine='openpyxl')
                     
-                st.success("Salvo com sucesso na planilha de fila!")
+                st.success("Salvo com sucesso na planilha com as colunas separadas!")
                 
             except Exception as e:
                 st.error(f"Erro ao salvar na planilha: {e}")
