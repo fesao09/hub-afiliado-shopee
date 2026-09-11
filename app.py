@@ -2,10 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
 import pandas as pd
+import json
 import os
 from datetime import datetime
 from PIL import Image
-import re
 
 # Configuração da página
 st.set_page_config(page_title="Hub Afiliado - Shopee & Pinterest", page_icon="🚀", layout="wide")
@@ -15,15 +15,23 @@ os.makedirs("media", exist_ok=True)
 
 # Função para limpar o estado (Resetar para o próximo produto)
 def limpar_campos():
-    st.session_state.texto_gerado = ""
+    st.session_state.dados_ia = {
+        "titulo": "", "descricao": "", "bloco_destaque": "",
+        "pasta": "", "interesses": "", "roteiro_video": "",
+        "texto_shop": "", "insight": ""
+    }
     st.session_state.link_shopee_val = ""
     st.session_state.preco_val = ""
     st.session_state.detalhes_val = ""
     st.session_state.link_afiliado_val = ""
 
 # Inicializa variáveis de estado se não existirem
-if "texto_gerado" not in st.session_state:
-    st.session_state.texto_gerado = ""
+if "dados_ia" not in st.session_state:
+    st.session_state.dados_ia = {
+        "titulo": "", "descricao": "", "bloco_destaque": "",
+        "pasta": "", "interesses": "", "roteiro_video": "",
+        "texto_shop": "", "insight": ""
+    }
 if "link_shopee_val" not in st.session_state:
     st.session_state.link_shopee_val = ""
 if "preco_val" not in st.session_state:
@@ -97,53 +105,29 @@ if st.button("🧠 Gerar Conteúdo com Gemini", type="primary") and pode_gerar:
     elif not link_shopee and not detalhes_extras and not imagens_upadas:
         st.warning("⚠️ Forneça o link, detalhes do produto ou uma imagem.")
     else:
-        with st.spinner("Analisando e estruturando o conteúdo completo..."):
+        with st.spinner("Analisando e separando os conteúdos em campos estruturados..."):
             genai.configure(api_key=api_key)
             
+            # System instruction exigindo estritamente um formato JSON estruturado por campos
             system_instruction = """
             Atue como meu assistente especialista em curadoria de produtos, estratégia de marketing de afiliados (foco Shopee e Pinterest) e estruturação de conteúdos de alta conversão.
             
-            DIRETRIZ DE CONTEÚDO: Seja extremamente completo, rico em detalhes, profissional e aprofundado, exatamente no mesmo nível de densidade de um curador sênior.
-
-            Sempre que receber os dados do produto, retorne o texto estruturado EXATAMENTE com este formato, títulos e emoticons (utilize Markdown):
-
-            📌 **Título do Pin:**
-            [Título limpo, chamativo e otimizado para o Pinterest, focando na marca, quantidade e tamanho exatos]
-
-            📝 **Descrição do Pin:**
-            [Texto envolvente e rico apresentando o produto, destacando benefícios, dores e utilidade. Termine com a chamada para ação informando o preço exato e a Shopee]
-
-            [Bloco de destaque: Parágrafo curto reforçando o grande diferencial do produto em negrito, seguido pelas hashtags oficiais do nicho e o link de afiliado]
-
-            💡 **Configuração rápida:**
-            - **Pasta:** [Pasta sugerida alinhada com o nicho]
-            - **Interesses / Tags no Pinterest:** [Lista rica de interesses focados em atributos, terminando no próprio produto]
-            - **Link de Destino:** [Link fornecido]
-
-            🎬 **Roteiro para Vídeo no Canva (Formato Pinterest 9:16 - 15 a 20 segundos):**
-            - **Cena 1 (0s - 03s) - Gancho visual:**
-              - *Visual no Canva:* [Descrição rica e detalhada do cenário, cores e elementos visuais]
-              - *Áudio/Ritmo:* [Descrição da trilha sonora e ritmo]
-            - **Cena 2 (03s - 11s) - Apresentação do produto:**
-              - *Visual no Canva:* [Descrição detalhada do foco, close-ups e animações na tela]
-              - *Texto na tela:* [Texto exato que aparecerá]
-              - *Legenda rápida:* [Legenda de apoio]
-            - **Cena 3 (11s - 18s) - Chamada para Ação:**
-              - *Visual no Canva:* [Descrição detalhada da tela final, setas e elementos de conversão]
-              - *Texto na tela:* [Texto exato de CTA]
-              - *Legenda final:* [Legenda de fechamento]
-
-            💬 **Texto para a descrição do Shop Vídeo (150 caracteres com hashtags):**
-            [Texto curto, magnético e direto com limite aproximado de 150 caracteres, já incluindo hashtags estratégicas]
-
-            🚀 **Insight de Afiliado:** [TÍTULO DA ANÁLISE EM CAIXA ALTA]
-            - **Análise:** [Análise de mercado aprofundada, explicando o comportamento do público-alvo e a urgência da necessidade]
-            - **Por que apostar:** [Tópicos detalhados destrinchando os gatilhos mentais aplicados, o apelo da marca, o custo-benefício e o potencial de conversão rápida]
+            DIRETRIZ: Seja extremamente completo, rico em detalhes e aprofundado nas respostas.
+            Você deve retornar APENAS um objeto JSON válido, contendo exatamente estas chaves:
+            - "titulo": Título limpo, chamativo e otimizado para o Pinterest.
+            - "descricao": Texto envolvente apresentando o produto, benefícios e CTA com o preço e a Shopee.
+            - "bloco_destaque": Parágrafo curto reforçando o diferencial em negrito, seguido pelas hashtags e placeholder para o link.
+            - "pasta": Nome da pasta sugerida para o Pinterest.
+            - "interesses": Tags e interesses recomendados para o Pinterest.
+            - "roteiro_video": Roteiro detalhado para Vídeo no Canva (Cena 1, Cena 2 e Cena 3 completas com visuais e textos).
+            - "texto_shop": Texto curto para Shop Vídeo (máx 150 caracteres com hashtags).
+            - "insight": Análise estratégica completa (Análise e Por que apostar).
             """
             
             model = genai.GenerativeModel(
                 model_name="gemini-2.5-flash",
-                system_instruction=system_instruction
+                system_instruction=system_instruction,
+                generation_config={"response_mime_type": "application/json"}
             )
             
             conteudo_prompt = [f"Link: {link_shopee}\nPreço: {preco_produto}\nDetalhes: {detalhes_extras}"]
@@ -155,41 +139,44 @@ if st.button("🧠 Gerar Conteúdo com Gemini", type="primary") and pode_gerar:
             
             try:
                 response = model.generate_content(conteudo_prompt)
-                st.session_state.texto_gerado = response.text
-                st.success("Conteúdo gerado com sucesso!")
+                resultado_json = json.loads(response.text)
+                
+                # Salva os dados estruturados no state
+                st.session_state.dados_ia = resultado_json
+                st.success("Conteúdo gerado e separado nos campos com sucesso!")
                 
             except ResourceExhausted:
                 st.error("⏳ Limite da API atingido. Aguarde cerca de 1 minuto ou ative o faturamento no Google AI Studio.")
             except Exception as e:
                 st.error(f"Erro ao gerar conteúdo: {e}")
 
-# Função auxiliar para extrair seções usando expressões regulares do texto gerado
-def extrair_secao(texto, padrao):
-    match = re.search(padrao, texto, re.IGNORECASE | re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return ""
+# --- ÁREA DE REVISÃO E EDIÇÃO EM CAMPOS SEPARADOS ---
+if st.session_state.dados_ia["titulo"] or st.session_state.dados_ia["descricao"]:
+    st.subheader("2. Revisão e Edição por Campos Individuais")
+    st.info("💡 Cada informação está em seu respectivo campo. Você pode ajustar qualquer detalhe antes de salvar na planilha.")
 
-# --- ÁREA DE REVISÃO, EDIÇÃO E CÓPIA RÁPIDA ---
-if st.session_state.texto_gerado:
-    st.subheader("2. Revisão, Edição e Cópia Rápida")
-    st.info("💡 **Dica para o Tablet:** Você pode editar o texto completo abaixo ou usar os blocos para copiar e colar nas redes.")
+    titulo_edit = st.text_input("📌 Título do Pin:", value=st.session_state.dados_ia.get("titulo", ""))
+    descricao_edit = st.text_area("📝 Descrição do Pin:", value=st.session_state.dados_ia.get("descricao", ""), height=120)
+    destaque_edit = st.text_area("✨ Bloco de Destaque & Hashtags:", value=st.session_state.dados_ia.get("bloco_destaque", ""), height=80)
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        pasta_edit = st.text_input("📁 Pasta Sugerida:", value=st.session_state.dados_ia.get("pasta", ""))
+    with col_b:
+        interesses_edit = st.text_input("🏷️ Interesses / Tags Pinterest:", value=st.session_state.dados_ia.get("interesses", ""))
 
-    # Caixa única de edição geral
-    texto_editado = st.text_area(
-        "Editor Geral de Conteúdo:", 
-        value=st.session_state.texto_gerado, 
-        height=450
-    )
+    roteiro_edit = st.text_area("🎬 Roteiro para Vídeo (Canva 9:16):", value=st.session_state.dados_ia.get("roteiro_video", ""), height=220)
+    shop_edit = st.text_area("💬 Texto para Shop Vídeo:", value=st.session_state.dados_ia.get("texto_shop", ""), height=80)
+    insight_edit = st.text_area("🚀 Insight de Afiliado:", value=st.session_state.dados_ia.get("insight", ""), height=150)
 
-    meu_link_afiliado = st.text_input("Cole aqui o seu Link de Afiliado final:", key="link_afiliado_val")
+    meu_link_afiliado = st.text_input("🔗 Cole aqui o seu Link de Afiliado final:", key="link_afiliado_val")
 
-    # --- ARMAZENAMENTO EM LOTE EM COLUNAS SEPARADAS ---
+    # --- ARMAZENAMENTO EM LOTE COM COLUNAS EXCLUSIVAS ---
     st.subheader("3. Salvar para Postagem")
 
     if st.button("💾 Salvar na Fila (Excel)", type="secondary"):
-        if not texto_editado or not meu_link_afiliado:
-            st.warning("Preencha o seu Link de Afiliado antes de salvar.")
+        if not titulo_edit or not meu_link_afiliado:
+            st.warning("Preencha ao menos o Título e o Link de Afiliado antes de salvar.")
         else:
             caminhos_salvos = []
             for arquivo in arquivos_upload:
@@ -200,24 +187,17 @@ if st.session_state.texto_gerado:
                 
             caminhos_str = " | ".join(caminhos_salvos)
 
-            # Extração inteligente de cada campo para a sua respectiva coluna
-            titulo_ext = extrair_secao(texto_editado, r"📌\s*\*?Título do Pin:\*?\s*(.*?)(?=\n\s*(?:📝|💡|🎬|💬|🚀)|$)")
-            descricao_ext = extrair_secao(texto_editado, r"📝\s*\*?Descrição do Pin:\*?\s*(.*?)(?=\n\s*(?:💡|🎬|💬|🚀)|$)")
-            pasta_ext = extrair_secao(texto_editado, r"Pasta:\s*(.*?)(?=\n|$)")
-            tags_ext = extrair_secao(texto_editado, r"Interesses\s*/\s*Tags no Pinterest:\s*(.*?)(?=\n\s*(?:🎬|💬|🚀|Link de Destino)|$)")
-            roteiro_ext = extrair_secao(texto_editado, r"🎬\s*\*?Roteiro para Vídeo no Canva.*?\*?\s*(.*?)(?=\n\s*(?:💬|🚀)|$)")
-            shop_ext = extrair_secao(texto_editado, r"💬\s*\*?Texto para a descrição do Shop Vídeo.*?\*?\s*(.*?)(?=\n\s*🚀|$)")
-            insight_ext = extrair_secao(texto_editado, r"🚀\s*\*?Insight de Afiliado:\*?\s*(.*)")
-
+            # Cada dado vai perfeitamente para a sua coluna dedicada
             novo_dado = {
                 "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "Título do Pin": titulo_ext,
-                "Descrição do Pin": descricao_ext,
-                "Pasta Sugerida": pasta_ext,
-                "Interesses / Tags Pinterest": tags_ext,
-                "Roteiro Vídeo (Canva 9:16)": roteiro_ext,
-                "Texto Shop Vídeo": shop_ext,
-                "Insight de Afiliado": insight_ext,
+                "Título do Pin": titulo_edit,
+                "Descrição do Pin": descricao_edit,
+                "Bloco Destaque e Tags": destaque_edit,
+                "Pasta Sugerida": pasta_edit,
+                "Interesses Pinterest": interesses_edit,
+                "Roteiro Vídeo Canva": roteiro_edit,
+                "Texto Shop Vídeo": shop_edit,
+                "Insight de Afiliado": insight_edit,
                 "Link Afiliado": meu_link_afiliado,
                 "Caminho Arquivos (Mídia)": caminhos_str
             }
@@ -234,7 +214,8 @@ if st.session_state.texto_gerado:
                 else:
                     df_novo.to_excel(arquivo_excel, index=False, engine='openpyxl')
                     
-                st.success("Salvo com sucesso na planilha com as colunas separadas!")
+                st.success("Salvo com sucesso! Cada informação foi para a sua coluna exclusiva na planilha.")
                 
             except Exception as e:
                 st.error(f"Erro ao salvar na planilha: {e}")
+            
