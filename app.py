@@ -34,13 +34,31 @@ if "link_afiliado_val" not in st.session_state:
 
 st.title("📌 Hub Gerador de Conteúdo - Afiliado Shopee")
 
-# Configuração da API e Botão de Limpar na Barra Lateral
+# --- CONFIGURAÇÕES E AÇÕES NA BARRA LATERAL ---
 st.sidebar.header("⚙️ Configurações & Ações")
 api_key = st.sidebar.text_input("Chave API do Gemini:", type="password")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🧹 Limpar Dados / Próximo Item", type="secondary", on_click=limpar_campos):
     st.sidebar.success("Campos limpos com sucesso!")
+
+# Botão de Download da Planilha na Barra Lateral
+st.sidebar.markdown("---")
+st.sidebar.subheader("📥 Meus Dados")
+
+arquivo_excel = "fila_postagens_shopee.xlsx"
+
+if os.path.exists(arquivo_excel):
+    with open(arquivo_excel, "rb") as f:
+        st.sidebar.download_button(
+            label="📊 Baixar Planilha (Excel)",
+            data=f,
+            file_name="fila_postagens_shopee.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+else:
+    st.sidebar.info("A planilha ainda não foi gerada. Salve pelo menos um produto para criá-la.")
+
 
 # --- ÁREA DE ENTRADA DE DADOS ---
 st.subheader("1. Dados do Produto & Mídia")
@@ -84,53 +102,42 @@ if st.button("🧠 Gerar Conteúdo com Gemini", type="primary") and pode_gerar:
             system_instruction = """
             Atue como meu assistente especialista em curadoria de produtos, estratégia de marketing de afiliados (foco Shopee e Pinterest) e estruturação de conteúdos de alta conversão.
             
-            DIRETRIZ DE CONTEÚDO: Seja extremamente completo, rico em detalhes, comercial, direto e prático, exatamente com o tom de um curador sênior de e-commerce.
+            DIRETRIZ DE CONTEÚDO: Seja extremamente completo, rico em detalhes, profissional e aprofundado, exatamente no mesmo nível de densidade de um curador sênior.
 
-            REGRAS DE FORMATAÇÃO OBRIGATÓRIA:
-            1. ANTES DO PIN: Inicie sempre a resposta declarando a análise de categoria ampla e rotulando o item (ex: 'Analisando o produto e aplicando a nossa abordagem de categoria ampla focada em [...], este item é [PRODUTO INÉDITO].').
-            2. POLÍTICA ANTI-BLOQUEIO: Nunca utilize termos sensíveis, nomes restritos de personagens de terror, armas ou palavras violentas em textos de imagem/vídeo. Prefira termos neutros e focados na experiência ou utilidade.
-
-            Sempre retorne o texto estruturado EXATAMENTE com este formato e emoticons:
+            Sempre que receber os dados do produto, retorne o texto estruturado EXATAMENTE com este formato, títulos e emoticons (utilize Markdown):
 
             📌 **Título do Pin:**
             [Título limpo, chamativo e otimizado para o Pinterest, focando na marca, quantidade e tamanho exatos]
 
             📝 **Descrição do Pin:**
-            [Texto comercial envolvente apresentando o produto, destacando benefícios, dores e utilidade. Termine com a chamada para ação informando o preço exato e a Shopee, seguido de um parágrafo curto de destaque e as hashtags oficiais]
+            [Texto envolvente e rico apresentando o produto, destacando benefícios, dores e utilidade. Termine com a chamada para ação informando o preço exato e a Shopee]
 
-            🖼️ **Guia para o Pin Estático no Canva:**
-            - **Fundo:** [Descrição exata da cor, textura ou clima visual ideal para o nicho]
-            - **Foto do Produto:** [Posicionamento centralizado com destaque nos atributos]
-            - **Textos (Fontes marcantes em caixa alta - ex: Bebas Neue ou Anton):**
-              - *Topo:* [Texto curto de impacto]
-              - *Centro:* [Nome ou benefício principal do produto]
-              - *Rodapé (Tarja):* [Preço exato e chamada para ação com seta 'Clica no Link 👇']
+            [Bloco de destaque: Parágrafo curto reforçando o grande diferencial do produto em negrito, seguido pelas hashtags oficiais do nicho e o link de afiliado]
 
             💡 **Configuração rápida:**
-            - **Pasta:** [Pasta sugerida alinhada com o nicho amplo]
+            - **Pasta:** [Pasta sugerida alinhada com o nicho]
             - **Interesses / Tags no Pinterest:** [Lista rica de interesses focados em atributos, terminando no próprio produto]
             - **Link de Destino:** [Link fornecido]
 
-            🎬 **Roteiro para Vídeo Pro (Formato Pinterest 9:16 - 4 Blocos Sequenciais):**
-            - **Cena 1 (0 a 3 segundos) - Gancho visual:**
-              - *Visual no Canva / Fundo:* [Descrição rica e dinâmica do cenário]
-              - *Texto na tela:* [Texto exato e seguro]
-            - **Cena 2 (3 a 7 segundos) - Apresentação do produto:**
-              - *Visual no Canva:* [Foco na foto do produto flutuando]
-              - *Texto na tela:* [Texto exato]
-            - **Cena 3 (7 a 11 segundos) - Benefício principal:**
-              - *Visual no Canva:* [Close nos atributos]
-              - *Texto na tela:* [Texto exato]
-            - **Cena 4 (11 a 14 segundos) - Chamada para Ação:**
-              - *Visual no Canva:* [Tela final de conversão]
-              - *Texto na tela:* [Preço e CTA clara 'Clica no Link 👇']
+            🎬 **Roteiro para Vídeo no Canva (Formato Pinterest 9:16 - 15 a 20 segundos):**
+            - **Cena 1 (0s - 03s) - Gancho visual:**
+              - *Visual no Canva:* [Descrição rica e detalhada do cenário, cores e elementos visuais]
+              - *Áudio/Ritmo:* [Descrição da trilha sonora e ritmo]
+            - **Cena 2 (03s - 11s) - Apresentação do produto:**
+              - *Visual no Canva:* [Descrição detalhada do foco, close-ups e animações na tela]
+              - *Texto na tela:* [Texto exato que aparecerá]
+              - *Legenda rápida:* [Legenda de apoio]
+            - **Cena 3 (11s - 18s) - Chamada para Ação:**
+              - *Visual no Canva:* [Descrição detalhada da tela final, setas e elementos de conversão]
+              - *Texto na tela:* [Texto exato de CTA]
+              - *Legenda final:* [Legenda de fechamento]
 
-            💬 **Texto para a descrição do Shop Vídeo (Menos de 150 caracteres com hashtags):**
-            [Texto curto, magnético e direto com limite estrito de 150 caracteres, já incluindo hashtags]
+            💬 **Texto para a descrição do Shop Vídeo (150 caracteres com hashtags):**
+            [Texto curto, magnético e direto com limite aproximado de 150 caracteres, já incluindo hashtags estratégicas]
 
-            🚀 **Insight de Afiliado: [TÍTULO DA ANÁLISE EM CAIXA ALTA]**
-            - **Análise:** [Análise comercial aprofundada explicando o comportamento do público e a urgência]
-            - **Por que apostar:** [Tópicos focados em conversão, gatilhos mentais e apelo de mercado]
+            🚀 **Insight de Afiliado:** [TÍTULO DA ANÁLISE EM CAIXA ALTA]
+            - **Análise:** [Análise de mercado aprofundada, explicando o comportamento do público-alvo e a urgência da necessidade]
+            - **Por que apostar:** [Tópicos detalhados destrinchando os gatilhos mentais aplicados, o apelo da marca, o custo-benefício e o potencial de conversão rápida]
             """
             
             model = genai.GenerativeModel(
@@ -158,7 +165,7 @@ if st.button("🧠 Gerar Conteúdo com Gemini", type="primary") and pode_gerar:
 # --- ÁREA DE REVISÃO, EDIÇÃO E CÓPIA RÁPIDA ---
 if st.session_state.texto_gerado:
     st.subheader("2. Revisão, Edição e Cópia Rápida")
-    st.info("💡 **Dica para o Tablet:** Você pode editar o texto completo abaixo ou usar os blocos de código individuais para copiar cada parte com um toque.")
+    st.info("💡 **Dica para o Tablet:** Você pode editar o texto completo abaixo ou usar os blocos para copiar e colar nas redes.")
 
     # Caixa única de edição geral
     texto_editado = st.text_area(
