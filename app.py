@@ -8,30 +8,28 @@ from datetime import datetime
 from PIL import Image
 
 # Configuração da página
-st.set_page_config(page_title="Hub Afiliado - Shopee & Pinterest", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="Hub Omnichannel - Afiliado Shopee", page_icon="🚀", layout="wide")
 
-# Criação do diretório para salvar as mídias
+# Criação do diretório para salvar as mídias locais
 os.makedirs("media", exist_ok=True)
 
-# Função para limpar o estado (Resetar para o próximo produto)
+# Função para limpar os campos da tela
 def limpar_campos():
-    st.session_state.dados_ia = {
-        "titulo": "", "descricao": "", "bloco_destaque": "",
-        "pasta": "", "interesses": "", "roteiro_video": "",
-        "texto_shop": "", "insight": ""
-    }
+    st.session_state.dados_pinterest = {}
+    st.session_state.dados_insta = {}
+    st.session_state.dados_tiktok = {}
     st.session_state.link_shopee_val = ""
     st.session_state.preco_val = ""
     st.session_state.detalhes_val = ""
     st.session_state.link_afiliado_val = ""
 
-# Inicializa variáveis de estado se não existirem
-if "dados_ia" not in st.session_state:
-    st.session_state.dados_ia = {
-        "titulo": "", "descricao": "", "bloco_destaque": "",
-        "pasta": "", "interesses": "", "roteiro_video": "",
-        "texto_shop": "", "insight": ""
-    }
+# Inicialização de variáveis de estado
+if "dados_pinterest" not in st.session_state:
+    st.session_state.dados_pinterest = {}
+if "dados_insta" not in st.session_state:
+    st.session_state.dados_insta = {}
+if "dados_tiktok" not in st.session_state:
+    st.session_state.dados_tiktok = {}
 if "link_shopee_val" not in st.session_state:
     st.session_state.link_shopee_val = ""
 if "preco_val" not in st.session_state:
@@ -41,36 +39,18 @@ if "detalhes_val" not in st.session_state:
 if "link_afiliado_val" not in st.session_state:
     st.session_state.link_afiliado_val = ""
 
-st.title("📌 Hub Gerador de Conteúdo - Afiliado Shopee")
+st.title("🚀 Hub Omnichannel de Afiliado - Shopee & Redes Sociais")
 
-# --- CONFIGURAÇÕES E AÇÕES NA BARRA LATERAL ---
+# --- BARRA LATERAL: CONFIGURAÇÕES E GESTÃO ---
 st.sidebar.header("⚙️ Configurações & Ações")
 api_key = st.sidebar.text_input("Chave API do Gemini:", type="password")
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🧹 Limpar Dados / Próximo Item", type="secondary", on_click=limpar_campos):
+if st.sidebar.button("🧹 Limpar Todos os Campos", type="secondary", on_click=limpar_campos):
     st.sidebar.success("Campos limpos com sucesso!")
 
-# Botão de Download da Planilha na Barra Lateral
-st.sidebar.markdown("---")
-st.sidebar.subheader("📥 Meus Dados")
-
-arquivo_excel = "fila_postagens_shopee.xlsx"
-
-if os.path.exists(arquivo_excel):
-    with open(arquivo_excel, "rb") as f:
-        st.sidebar.download_button(
-            label="📊 Baixar Planilha (Excel)",
-            data=f,
-            file_name="fila_postagens_shopee.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-else:
-    st.sidebar.info("A planilha ainda não foi gerada. Salve pelo menos um produto para criá-la.")
-
-
-# --- ÁREA DE ENTRADA DE DADOS ---
-st.subheader("1. Dados do Produto & Mídia")
+# --- ÁREA COMUM DE ENTRADA DE DADOS ---
+st.subheader("1. Dados Base do Produto & Mídia")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -78,144 +58,282 @@ with col1:
 with col2:
     preco_produto = st.text_input("Preço Promocional (Opcional):", key="preco_val")
 
-detalhes_extras = st.text_area("Detalhes extras (mensagem de compartilhamento da Shopee com nome e preço):", key="detalhes_val", height=100)
+detalhes_extras = st.text_area("Detalhes extras (nome do produto, marca, diferenciais ou mensagem da Shopee):", key="detalhes_val", height=80)
 
 # Uploader de Mídia
-st.write("**Arquivos de Mídia (Preparação para Postagem)**")
 arquivos_upload = st.file_uploader(
-    "Faça upload dos arquivos (Máx: 1 Imagem e 1 Vídeo)", 
+    "Faça upload dos arquivos de mídia (Máx: 1 Imagem e 1 Vídeo)", 
     type=["png", "jpg", "jpeg", "mp4", "mov"], 
     accept_multiple_files=True
 )
 
-# Validação da regra de 1 vídeo e 1 imagem
 imagens_upadas = [f for f in arquivos_upload if f.type.startswith('image')]
 videos_upados = [f for f in arquivos_upload if f.type.startswith('video')]
 
 if len(imagens_upadas) > 1 or len(videos_upados) > 1:
-    st.warning("⚠️ Atenção: A estrutura do Pin aceita apenas 1 imagem e 1 vídeo. Remova os arquivos excedentes.")
+    st.warning("⚠️ Atenção: A estrutura aceita apenas 1 imagem e 1 vídeo. Remova os excedentes.")
     pode_gerar = False
 else:
     pode_gerar = True
 
-# Botão de Geração
-if st.button("🧠 Gerar Conteúdo com Gemini", type="primary") and pode_gerar:
-    if not api_key:
-        st.warning("⚠️ Insira sua Chave API do Gemini na barra lateral.")
-    elif not link_shopee and not detalhes_extras and not imagens_upadas:
-        st.warning("⚠️ Forneça o link, detalhes do produto ou uma imagem.")
-    else:
-        with st.spinner("Analisando e separando os conteúdos em campos estruturados..."):
-            genai.configure(api_key=api_key)
-            
-            # System instruction exigindo estritamente um formato JSON estruturado por campos
-            system_instruction = """
-            Atue como meu assistente especialista em curadoria de produtos, estratégia de marketing de afiliados (foco Shopee e Pinterest) e estruturação de conteúdos de alta conversão.
-            
-            DIRETRIZ: Seja extremamente completo, rico em detalhes e aprofundado nas respostas.
-            Você deve retornar APENAS um objeto JSON válido, contendo exatamente estas chaves:
-            - "titulo": Título limpo, chamativo e otimizado para o Pinterest.
-            - "descricao": Texto envolvente apresentando o produto, benefícios e CTA com o preço e a Shopee.
-            - "bloco_destaque": Parágrafo curto reforçando o diferencial em negrito, seguido pelas hashtags e placeholder para o link.
-            - "pasta": Nome da pasta sugerida para o Pinterest.
-            - "interesses": Tags e interesses recomendados para o Pinterest.
-            - "roteiro_video": Roteiro detalhado para Vídeo no Canva (Cena 1, Cena 2 e Cena 3 completas com visuais e textos).
-            - "texto_shop": Texto curto para Shop Vídeo (máx 150 caracteres com hashtags).
-            - "insight": Análise estratégica completa (Análise e Por que apostar).
-            """
-            
-            model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash",
-                system_instruction=system_instruction,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            
-            conteudo_prompt = [f"Link: {link_shopee}\nPreço: {preco_produto}\nDetalhes: {detalhes_extras}"]
-            
-            if imagens_upadas:
-                img_file = imagens_upadas[0]
-                img = Image.open(img_file)
-                conteudo_prompt.append(img)
-            
-            try:
-                response = model.generate_content(conteudo_prompt)
-                resultado_json = json.loads(response.text)
-                
-                # Salva os dados estruturados no state
-                st.session_state.dados_ia = resultado_json
-                st.success("Conteúdo gerado e separado nos campos com sucesso!")
-                
-            except ResourceExhausted:
-                st.error("⏳ Limite da API atingido. Aguarde cerca de 1 minuto ou ative o faturamento no Google AI Studio.")
-            except Exception as e:
-                st.error(f"Erro ao gerar conteúdo: {e}")
+st.markdown("---")
 
-# --- ÁREA DE REVISÃO E EDIÇÃO EM CAMPOS SEPARADOS ---
-if st.session_state.dados_ia["titulo"] or st.session_state.dados_ia["descricao"]:
-    st.subheader("2. Revisão e Edição por Campos Individuais")
-    st.info("💡 Cada informação está em seu respectivo campo. Você pode ajustar qualquer detalhe antes de salvar na planilha.")
+# --- SISTEMA DE ABAS (TABS) PARA CADA REDE ---
+aba_pinterest, aba_insta, aba_tiktok, aba_historico = st.tabs([
+    "📌 Pinterest & Shopee Vídeo", 
+    "📸 Instagram (Reels & Stories)", 
+    "🎵 TikTok", 
+    "📊 Histórico & Status de Postagem"
+])
 
-    titulo_edit = st.text_input("📌 Título do Pin:", value=st.session_state.dados_ia.get("titulo", ""))
-    descricao_edit = st.text_area("📝 Descrição do Pin:", value=st.session_state.dados_ia.get("descricao", ""), height=120)
-    destaque_edit = st.text_area("✨ Bloco de Destaque & Hashtags:", value=st.session_state.dados_ia.get("bloco_destaque", ""), height=80)
+# ==========================================
+# ABA 1: PINTEREST & SHOPEE VÍDEO
+# ==========================================
+with aba_pinterest:
+    st.header("📌 Gerador para Pinterest & Shopee Vídeo")
     
-    col_a, col_b = st.columns(2)
-    with col_a:
-        pasta_edit = st.text_input("📁 Pasta Sugerida:", value=st.session_state.dados_ia.get("pasta", ""))
-    with col_b:
-        interesses_edit = st.text_input("🏷️ Interesses / Tags Pinterest:", value=st.session_state.dados_ia.get("interesses", ""))
-
-    roteiro_edit = st.text_area("🎬 Roteiro para Vídeo (Canva 9:16):", value=st.session_state.dados_ia.get("roteiro_video", ""), height=220)
-    shop_edit = st.text_area("💬 Texto para Shop Vídeo:", value=st.session_state.dados_ia.get("texto_shop", ""), height=80)
-    insight_edit = st.text_area("🚀 Insight de Afiliado:", value=st.session_state.dados_ia.get("insight", ""), height=150)
-
-    meu_link_afiliado = st.text_input("🔗 Cole aqui o seu Link de Afiliado final:", key="link_afiliado_val")
-
-    # --- ARMAZENAMENTO EM LOTE COM COLUNAS EXCLUSIVAS ---
-    st.subheader("3. Salvar para Postagem")
-
-    if st.button("💾 Salvar na Fila (Excel)", type="secondary"):
-        if not titulo_edit or not meu_link_afiliado:
-            st.warning("Preencha ao menos o Título e o Link de Afiliado antes de salvar.")
+    if st.button("🧠 Gerar Conteúdo para Pinterest", type="primary") and pode_gerar:
+        if not api_key:
+            st.warning("⚠️ Insira sua Chave API do Gemini na barra lateral.")
+        elif not link_shopee and not detalhes_extras and not imagens_upadas:
+            st.warning("⚠️ Forneça o link, detalhes do produto ou uma imagem.")
         else:
-            caminhos_salvos = []
-            for arquivo in arquivos_upload:
-                caminho_arquivo = os.path.join("media", arquivo.name)
-                with open(caminho_arquivo, "wb") as f:
-                    f.write(arquivo.getbuffer())
-                caminhos_salvos.append(caminho_arquivo)
+            with st.spinner("Gerando curadoria completa para o Pinterest..."):
+                genai.configure(api_key=api_key)
                 
-            caminhos_str = " | ".join(caminhos_salvos)
+                system_instruction = """
+                Atue como especialista em curadoria de produtos e marketing de afiliados (Pinterest e Shopee).
+                A descrição do Pin deve ter RIGOROSAMENTE NO MÁXIMO 800 CARACTERES.
+                Retorne APENAS um JSON válido com as chaves:
+                - "titulo": Título limpo e otimizado para o Pinterest.
+                - "descricao": Texto envolvente da descrição (máx 800 caracteres).
+                - "bloco_destaque": Parágrafo de destaque com diferencial em negrito e hashtags oficiais.
+                - "pasta": Pasta sugerida.
+                - "interesses": Interesses e tags recomendadas.
+                - "roteiro_estatico": Sugestão de design para Pin Estático.
+                - "roteiro_video": Roteiro detalhado para Vídeo Canva (9:16).
+                - "texto_shop": Texto para Shop Vídeo (máx 150 caracteres).
+                - "insight": Análise estratégica de afiliado.
+                """
+                
+                model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=system_instruction, generation_config={"response_mime_type": "application/json"})
+                conteudo_prompt = [f"Link: {link_shopee}\nPreço: {preco_produto}\nDetalhes: {detalhes_extras}"]
+                if imagens_upadas:
+                    conteudo_prompt.append(Image.open(imagens_upadas[0]))
+                
+                try:
+                    response = model.generate_content(conteudo_prompt)
+                    st.session_state.dados_pinterest = json.loads(response.text)
+                    st.success("Conteúdo do Pinterest gerado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro: {e}")
 
-            # Cada dado vai perfeitamente para a sua coluna dedicada
-            novo_dado = {
+    # Campos editáveis Pinterest
+    p_data = st.session_state.dados_pinterest
+    p_titulo = st.text_input("📌 Título do Pin:", value=p_data.get("titulo", ""))
+    p_desc = st.text_area("📝 Descrição do Pin (Máx 800 chars):", value=p_data.get("descricao", ""), height=100)
+    p_bloco = st.text_area("✨ Bloco de Destaque & Hashtags:", value=p_data.get("bloco_destaque", ""), height=70)
+    
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        p_pasta = st.text_input("📁 Pasta:", value=p_data.get("pasta", ""))
+    with col_p2:
+        p_tags = st.text_input("🏷️ Tags:", value=p_data.get("interesses", ""))
+        
+    p_estatico = st.text_area("🖼️ Roteiro Pin Estático:", value=p_data.get("roteiro_estatico", ""), height=100)
+    p_video = st.text_area("🎬 Roteiro Vídeo Canva (9:16):", value=p_data.get("roteiro_video", ""), height=180)
+    p_shop = st.text_area("💬 Texto Shop Vídeo:", value=p_data.get("texto_shop", ""), height=70)
+    p_insight = st.text_area("🚀 Insight de Afiliado:", value=p_data.get("insight", ""), height=100)
+    
+    link_afiliado_p = st.text_input("🔗 Link de Afiliado Final (Pinterest):", key="afiliado_p")
+
+    if st.button("💾 Salvar Pinterest na Fila", type="secondary"):
+        if not p_titulo or not link_afiliado_p:
+            st.warning("Preencha ao menos o Título e o Link de Afiliado.")
+        else:
+            novo_registro = {
                 "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "Título do Pin": titulo_edit,
-                "Descrição do Pin": descricao_edit,
-                "Bloco Destaque e Tags": destaque_edit,
-                "Pasta Sugerida": pasta_edit,
-                "Interesses Pinterest": interesses_edit,
-                "Roteiro Vídeo Canva": roteiro_edit,
-                "Texto Shop Vídeo": shop_edit,
-                "Insight de Afiliado": insight_edit,
-                "Link Afiliado": meu_link_afiliado,
-                "Caminho Arquivos (Mídia)": caminhos_str
+                "Plataforma": "Pinterest",
+                "Título / Produto": p_titulo,
+                "Link Afiliado": link_afiliado_p,
+                "Enviado? (Sim/Não)": "Não",
+                "Detalhes Extras": p_desc[:100] + "..."
             }
-            
-            df_novo = pd.DataFrame([novo_dado])
-            arquivo_excel = "fila_postagens_shopee.xlsx"
-            
-            try:
-                if os.path.exists(arquivo_excel):
-                    with pd.ExcelWriter(arquivo_excel, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-                        df_existente = pd.read_excel(arquivo_excel)
-                        startrow = len(df_existente) + 1
-                        df_novo.to_excel(writer, index=False, header=False, startrow=startrow)
-                else:
-                    df_novo.to_excel(arquivo_excel, index=False, engine='openpyxl')
-                    
-                st.success("Salvo com sucesso! Cada informação foi para a sua coluna exclusiva na planilha.")
+            df_novo = pd.DataFrame([novo_tab := novo_registro])
+            # Salva na fila unificada
+            arquivo_excel = "fila_omnichannel.xlsx"
+            if os.path.exists(arquivo_excel):
+                df_ex = pd.read_excel(arquivo_excel)
+                df_final = pd.concat([df_ex, df_novo], ignore_index=True)
+                df_final.to_excel(arquivo_excel, index=False)
+            else:
+                df_novo.to_excel(arquivo_excel, index=False)
+            st.success("Salvo na fila de postagem do Pinterest!")
+
+
+# ==========================================
+# ABA 2: INSTAGRAM (REELS & STORIES)
+# ==========================================
+with aba_insta:
+    st.header("📸 Gerador para Instagram (Reels & Stories)")
+    
+    if st.button("🧠 Gerar Pacote para Instagram", type="primary") and pode_gerar:
+        if not api_key:
+            st.warning("⚠️ Insira sua Chave API do Gemini na barra lateral.")
+        else:
+            with st.spinner("Criando estratégia magnética para o Instagram..."):
+                genai.configure(api_key=api_key)
                 
-            except Exception as e:
-                st.error(f"Erro ao salvar na planilha: {e}")
-            
+                system_instruction = """
+                Atue como especialista em Marketing de Afiliados e Copywriting para e-commerce (foco Instagram Reels e Stories).
+                Estruture a resposta EXATAMENTE com as seções em JSON válido contendo as chaves:
+                - "textos_tela": 3 momentos curtos para a tela do vídeo (Início, Meio, Fim).
+                - "legenda_reels": Legenda persuasiva com quebras de linha dinâmicas, CTA para comentar "QUERO" e hashtags estratégicas.
+                - "story_1": Roteiro para Story 1 (Abertura / Gancho de curiosidade).
+                - "story_2": Roteiro para Story 2 (Detalhe / Desejo e utilidade com chamada).
+                - "story_3": Roteiro para Story 3 (Fechamento / Urgência e preço).
+                """
+                
+                model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=system_instruction, generation_config={"response_mime_type": "application/json"})
+                conteudo_prompt = [f"Link: {link_shopee}\nPreço: {preco_produto}\nDetalhes: {detalhes_extras}"]
+                if imagens_upadas:
+                    conteudo_prompt.append(Image.open(imagens_upadas[0]))
+                
+                try:
+                    response = model.generate_content(conteudo_prompt)
+                    st.session_state.dados_insta = json.loads(response.text)
+                    st.success("Pacote do Instagram gerado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro: {e}")
+
+    i_data = st.session_state.dados_insta
+    i_tela = st.text_area("1️⃣ Textos Rápidos para Tela do Vídeo:", value=i_data.get("textos_tela", ""), height=100)
+    i_legenda = st.text_area("2️⃣ Legenda para Reels (Estratégia 'Comente QUERO'):", value=i_data.get("legenda_reels", ""), height=180)
+    i_s1 = st.text_area("📱 Story 1 (Gancho / Curiosidade):", value=i_data.get("story_1", ""), height=90)
+    i_s2 = st.text_area("📱 Story 2 (Detalhe / Desejo):", value=i_data.get("story_2", ""), height=90)
+    i_s3 = st.text_area("📱 Story 3 (Fechamento / Urgência):", value=i_data.get("story_3", ""), height=90)
+    
+    link_afiliado_i = st.text_input("🔗 Link de Afiliado Final (Instagram):", key="afiliado_i")
+
+    if st.button("💾 Salvar Instagram na Fila", type="secondary"):
+        if not i_legenda or not link_afiliado_i:
+            st.warning("Preencha ao menos a Legenda e o Link de Afiliado.")
+        else:
+            novo_registro = {
+                "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                "Plataforma": "Instagram",
+                "Título / Produto": detalhes_extras[:40] or "Produto Instagram",
+                "Link Afiliado": link_afiliado_i,
+                "Enviado? (Sim/Não)": "Não",
+                "Detalhes Extras": i_legenda[:100] + "..."
+            }
+            df_novo = pd.DataFrame([novo_registro])
+            arquivo_excel = "fila_omnichannel.xlsx"
+            if os.path.exists(arquivo_excel):
+                df_ex = pd.read_excel(arquivo_excel)
+                df_final = pd.concat([df_ex, df_novo], ignore_index=True)
+                df_final.to_excel(arquivo_excel, index=False)
+            else:
+                df_novo.to_excel(arquivo_excel, index=False)
+            st.success("Salvo na fila de postagem do Instagram!")
+
+
+# ==========================================
+# ABA 3: TIKTOK
+# ==========================================
+aba_tiktok_view, _ = aba_tiktok, None # Ajuste de escopo visual
+with aba_tiktok:
+    st.header("🎵 Gerador para TikTok")
+    
+    if st.button("🧠 Gerar Pacote para TikTok", type="primary") and pode_gerar:
+        if not api_key:
+            st.warning("⚠️ Insira sua Chave API do Gemini na barra lateral.")
+        else:
+            with st.spinner("Criando conteúdo viral para o TikTok..."):
+                genai.configure(api_key=api_key)
+                
+                system_instruction = """
+                Atue como especialista em Marketing de Afiliados e Copywriting para TikTok.
+                Estruture a resposta EXATAMENTE em JSON válido contendo as chaves:
+                - "textos_tela": 3 momentos curtos para a tela do vídeo (Gancho, Benefício, CTA).
+                - "legenda_tiktok": Legenda direta, focada em curiosidade e desejo, com CTA para Link na Bio ou comentar "QUERO" e hashtags em alta.
+                """
+                
+                model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=system_instruction, generation_config={"response_mime_type": "application/json"})
+                conteudo_prompt = [f"Link: {link_shopee}\nPreço: {preco_produto}\nDetalhes: {detalhes_extras}"]
+                if imagens_upadas:
+                    conteudo_prompt.append(Image.open(imagens_upadas[0]))
+                
+                try:
+                    response = model.generate_content(conteudo_prompt)
+                    st.session_state.dados_tiktok = json.loads(response.text)
+                    st.success("Pacote do TikTok gerado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro: {e}")
+
+    t_data = st.session_state.dados_tiktok
+    t_tela = st.text_area("1️⃣ Textos para Tela do Vídeo (TikTok):", value=t_data.get("textos_tela", ""), height=100)
+    t_legenda = st.text_area("2️⃣ Legenda para TikTok (Curiosidade & Desejo):", value=t_data.get("legenda_tiktok", ""), height=150)
+    
+    link_afiliado_t = st.text_input("🔗 Link de Afiliado Final (TikTok):", key="afiliado_t")
+
+    if st.button("💾 Salvar TikTok na Fila", type="secondary"):
+        if not t_legenda or not link_afiliado_t:
+            st.warning("Preencha a Legenda e o Link de Afiliado.")
+        else:
+            novo_registro = {
+                "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                "Plataforma": "TikTok",
+                "Título / Produto": detalhes_extras[:40] or "Produto TikTok",
+                "Link Afiliado": link_afiliado_t,
+                "Enviado? (Sim/Não)": "Não",
+                "Detalhes Extras": t_legenda[:100] + "..."
+            }
+            df_novo = pd.DataFrame([novo_registro])
+            arquivo_excel = "fila_omnichannel.xlsx"
+            if os.path.exists(arquivo_excel):
+                df_ex = pd.read_excel(arquivo_excel)
+                df_final = pd.concat([df_ex, df_novo], ignore_index=True)
+                df_final.to_excel(arquivo_excel, index=False)
+            else:
+                df_novo.to_excel(arquivo_excel, index=False)
+            st.success("Salvo na fila de postagem do TikTok!")
+
+
+# ==========================================
+# ABA 4: HISTÓRICO & STATUS DE POSTAGEM (CRM)
+# ==========================================
+with aba_historico:
+    st.header("📊 Gestão de Fila e Status de Envio")
+    st.info("Aqui você acompanha tudo o que já foi gerado e pode atualizar o status de postagem para cada rede social.")
+
+    arquivo_excel = "fila_omnichannel.xlsx"
+    
+    if os.path.exists(arquivo_excel):
+        df_historico = pd.read_excel(arquivo_excel)
+        
+        # Exibe a tabela interativa onde o usuário pode alterar colunas (como o status de enviado)
+        st.write("**Sua Fila de Produtos e Redes:**")
+        
+        # Editor de dados interativo do Streamlit (Permite alterar o status "Enviado?" direto na tela)
+        df_editado = st.data_editor(
+            df_historico, 
+            num_rows="dynamic",
+            key="editor_tabela"
+        )
+        
+        col_h1, col_h2 = st.columns(2)
+        with col_h1:
+            if st.button("💾 Salvar Alterações de Status"):
+                df_editado.to_excel(arquivo_excel, index=False)
+                st.success("Status atualizados com sucesso!")
+        with col_h2:
+            with open(arquivo_excel, "rb") as f:
+                st.download_button(
+                    label="📊 Baixar Planilha Atualizada (.xlsx)",
+                    data=f,
+                    file_name="fila_omnichannel_afiliado.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+    else:
+        st.info("Nenhum produto salvo na fila omnichannel ainda. Gere e salve conteúdos nas abas anteriores!")
